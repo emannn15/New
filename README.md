@@ -23,22 +23,47 @@ This project demonstrates a distributed processing deadlock scenario using Pytho
 
 ## Code Explanation
 
-### `process(lock1, lock2)`
-This function simulates the behavior of a process in a distributed system. It:
-- Connects to `lock1`, simulating the process of acquiring a lock.
-- After holding `lock1` for a short time (`1 second`), it tries to connect to `lock2`.
-- The deadlock occurs if another process is already holding `lock2`.
+The code consists of two main functions: `process()` and `lock_server()`.
 
-### `lock_server(addr)`
-This function simulates a lock resource that processes can connect to. It:
-- Listens on a given address (`localhost` and a specific port) for incoming connections.
-- Simulates holding the resource for a set time (`5 seconds`) before releasing the lock.
+### Code
 
-## Running the Program
+```python
+import multiprocessing
+import socket
+import time
 
-1. Make sure Python 3.x is installed on your system.
-2. Copy the code from `deadlock.py` to your project folder.
-3. Run the script:
+def process(lock1, lock2):
+    with socket.socket() as s1, socket.socket() as s2:
+        s1.connect(lock1)
+        print(f"{multiprocessing.current_process().name} got lock1")
+        time.sleep(1)
+        s2.connect(lock2)
+        print(f"{multiprocessing.current_process().name} got lock2")
 
-```bash
-python deadlock.py
+def lock_server(addr):
+    with socket.socket() as server:
+        server.bind(addr)
+        server.listen(1)
+        conn, _ = server.accept()
+        time.sleep(5)
+        conn.close()
+
+if __name__ == "__main__":
+    lock1 = ("localhost", 6000)
+    lock2 = ("localhost", 6001)
+
+    l1 = multiprocessing.Process(target=lock_server, args=(lock1,))
+    l2 = multiprocessing.Process(target=lock_server, args=(lock2,))
+    
+    p1 = multiprocessing.Process(target=process, args=(lock1, lock2))
+    p2 = multiprocessing.Process(target=process, args=(lock2, lock1))
+
+    l1.start()
+    l2.start()
+    p1.start()
+    p2.start()
+
+    p1.join()
+    p2.join()
+    l1.join()
+    l2.join()
